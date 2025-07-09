@@ -1,7 +1,7 @@
 use core::{
     alloc::Layout,
     ffi::c_char,
-    sync::atomic::{AtomicBool, Ordering, compiler_fence},
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use alloc::{
@@ -19,17 +19,15 @@ static ACCESSING_USER_MEM: AtomicBool = AtomicBool::new(false);
 
 /// Check if the current thread is accessing user memory
 pub fn is_accessing_user_memory() -> bool {
-    ACCESSING_USER_MEM.with_current(|v| v.load(Ordering::Acquire))
+    ACCESSING_USER_MEM.with_current(|v| v.load(Ordering::SeqCst))
 }
 
 /// Enable safe access to user memory within the closure
 pub fn access_user_memory<R>(f: impl FnOnce() -> R) -> R {
     ACCESSING_USER_MEM.with_current(|v| {
-        v.store(true, Ordering::Release);
-        compiler_fence(Ordering::SeqCst);
+        v.store(true, Ordering::SeqCst);
         let result = f();
-        compiler_fence(Ordering::SeqCst);
-        v.store(false, Ordering::Release);
+        v.store(false, Ordering::SeqCst);
         result
     })
 }
