@@ -112,11 +112,12 @@ impl<A: UserSpaceAccess> UserSpace<A> {
     }
 
     /// Read a value from user space
-    pub fn read<P, T>(&self, ptr: P) -> LinuxResult<&'static T>
+    pub fn read<P, T>(&self, ptr: P) -> LinuxResult<T>
     where
         P: UserReadable<T>,
+        T: Copy + 'static,
     {
-        ptr.get_as_ref(&self.uspace)
+        ptr.get_as_ref(&self.uspace).copied()
     }
 
     /// Read a null-terminated string from user space
@@ -186,7 +187,7 @@ impl<A: UserSpaceAccess> UserSpace<A> {
         let mut offset = 0;
 
         loop {
-            let str_ptr = *self.read(ptr.offset(offset))?;
+            let str_ptr = self.read(ptr.offset(offset))?;
             if str_ptr.is_null() {
                 break;
             }
