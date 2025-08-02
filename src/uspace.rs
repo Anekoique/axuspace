@@ -110,12 +110,12 @@ pub trait UserSpaceAccess: Sized {
     }
 
     /// Read multiple strings from a null-terminated array of string pointers
-    fn read_str_array(
-        &self,
-        ptr: UserConstPtr<UserConstPtr<c_char>>,
-    ) -> LinuxResult<Vec<String>> {
+    fn read_str_array(&self, ptr: UserConstPtr<UserConstPtr<c_char>>) -> LinuxResult<Vec<String>> {
         let mut strings = Vec::new();
         let mut offset = 0;
+        if ptr.is_null() {
+            return Ok(strings);
+        }
 
         loop {
             let str_ptr = self.read(ptr.offset(offset))?;
@@ -142,7 +142,8 @@ pub fn check_region<A: UserSpaceAccess>(
         return Err(LinuxError::EFAULT);
     }
 
-    let range = VirtAddrRange::from_start_size(start, layout.size());
+    let range =
+        VirtAddrRange::try_from_start_size(start, layout.size()).ok_or(LinuxError::EFAULT)?;
     uspace.check_region_access(range, access_flags)?;
     uspace.populate_region(range, access_flags)?;
     Ok(())
@@ -185,15 +186,29 @@ pub fn check_null_terminated<T: PartialEq + Default, A: UserSpaceAccess>(
     })
 }
 
-/// Macro for handling nullable user space pointers
 #[macro_export]
 macro_rules! nullable {
-    ($uspace:ident.$method:ident($ptr:expr $(, $arg:expr)*)) => {
-        if $ptr.is_null() {
-            Ok(None)
-        } else {
-            $uspace.$method($ptr $(, $arg)*).map(Some)
+    (@impl ($($base:tt)*) . $method:ident ( $ptr:expr $(, $args:expr)* )) => {
+        {
+            if $ptr.is_null() { Ok(None) }
+            else { ($($base)*) . $method ($ptr $(, $args)*).map(Some) }
         }
+    };
+
+    (@impl ($($base:tt)*) . $next:ident ( $($args:tt)* ) $($rest:tt)*) => {
+        nullable!(@impl ($($base)* . $next ( $($args)* )) $($rest)*)
+    };
+
+    (@impl ($($base:tt)*) . $field:ident $($rest:tt)*) => {
+        nullable!(@impl ($($base)* . $field) $($rest)*)
+    };
+
+    (@impl () $first:ident $($rest:tt)*) => {
+        nullable!(@impl ($first) $($rest)*)
+    };
+
+    ($($chain:tt)*) => {
+        nullable!(@impl () $($chain)*)
     };
 }
 

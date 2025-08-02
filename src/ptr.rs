@@ -114,6 +114,13 @@ impl<T> From<*mut T> for UserPtr<T> {
     }
 }
 
+impl<T> From<Option<*mut T>> for UserPtr<T> {
+    /// Create UserPtr from a mutable pointer
+    fn from(value: Option<*mut T>) -> Self {
+        UserPtr(value.unwrap_or(ptr::null_mut()))
+    }
+}
+
 impl<T> Default for UserPtr<T> {
     /// Create a null UserPtr
     fn default() -> Self {
@@ -169,7 +176,7 @@ impl<T> UserPtr<T> {
 
 /// Immutable user space pointer wrapper
 #[repr(transparent)]
-#[derive(PartialEq, Clone, Copy)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub struct UserConstPtr<T>(*const T);
 
 impl<T> From<usize> for UserConstPtr<T> {
@@ -193,3 +200,4 @@ impl<T> Default for UserConstPtr<T> {
 }
 
 impl_user_pointer!(UserConstPtr, *const U);
+
